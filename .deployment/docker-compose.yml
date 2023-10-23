@@ -1,0 +1,150 @@
+services:
+  ticket-service:
+    image: sysdesign/ticket-service:latest
+    hostname: ticket
+    environment:
+      - QUARKUS_MONGODB_CONNECTION_STRING=mongodb://mongodb:27017
+      - QUARKUS_OIDC_AUTH_SERVER_URL=http://keycloak:8080/realms/sysdesign
+      - QUARKUS_OIDC_CLIENT_ID=sysdesign-api
+      - QUARKUS_OIDC_CREDENTIALS_SECRET=secret
+      - QUARKUS_OIDC_TLS_VERIFICATION=none
+      - QUARKUS_OIDC_TOKEN_ISSUER=http://keycloak.localhost/realms/sysdesign
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.ticket-service.rule=Host(`ticket.localhost`)"
+      - "traefik.http.routers.ticket-service.entrypoints=web"
+    depends_on:
+      - keycloak
+      - mongodb
+
+  staff-service:
+    image: sysdesign/staff-service:latest
+    environment:
+      - QUARKUS_MONGODB_CONNECTION_STRING=mongodb://mongodb:27017
+      - QUARKUS_OIDC_AUTH_SERVER_URL=http://keycloak:8080/realms/sysdesign
+      - QUARKUS_OIDC_CLIENT_ID=sysdesign-api
+      - QUARKUS_OIDC_CREDENTIALS_SECRET=secret
+      - QUARKUS_OIDC_TLS_VERIFICATION=none
+      - QUARKUS_OIDC_TOKEN_ISSUER=http://keycloak.localhost/realms/sysdesign
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.staff-service.rule=Host(`staff.localhost`)"
+      - "traefik.http.routers.staff-service.entrypoints=web"
+    depends_on:
+      - keycloak
+      - mongodb
+
+  rating-service:
+    image: sysdesign/rating-service:latest
+    environment:
+      - QUARKUS_MONGODB_CONNECTION_STRING=mongodb://mongodb:27017
+      - QUARKUS_OIDC_AUTH_SERVER_URL=http://keycloak:8080/realms/sysdesign
+      - QUARKUS_OIDC_CLIENT_ID=sysdesign-api
+      - QUARKUS_OIDC_CREDENTIALS_SECRET=secret
+      - QUARKUS_OIDC_TLS_VERIFICATION=none
+      - QUARKUS_OIDC_TOKEN_ISSUER=http://keycloak.localhost/realms/sysdesign
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.rating-service.rule=Host(`rating.localhost`)"
+      - "traefik.http.routers.rating-service.entrypoints=web"
+    depends_on:
+      - keycloak
+      - mongodb
+
+  catalogus-service:
+    image: sysdesign/catalogus-service:latest
+    environment:
+      - QUARKUS_MONGODB_CONNECTION_STRING=mongodb://mongodb:27017
+      - QUARKUS_OIDC_AUTH_SERVER_URL=http://keycloak:8080/realms/sysdesign
+      - QUARKUS_OIDC_CLIENT_ID=sysdesign-api
+      - QUARKUS_OIDC_CREDENTIALS_SECRET=secret
+      - QUARKUS_OIDC_TLS_VERIFICATION=none
+      - QUARKUS_OIDC_TOKEN_ISSUER=http://keycloak.localhost/realms/sysdesign
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.catalogus-service.rule=Host(`catalogus.localhost`)"
+      - "traefik.http.routers.catalogus-service.entrypoints=web"
+    depends_on:
+      - keycloak
+      - mongodb
+
+  analytics-service:
+    image: sysdesign/analytics-service:latest
+    environment:
+      - QUARKUS_OIDC_AUTH_SERVER_URL=http://keycloak:8080/realms/sysdesign
+      - QUARKUS_OIDC_CLIENT_ID=sysdesign-api
+      - QUARKUS_OIDC_CREDENTIALS_SECRET=secret
+      - QUARKUS_OIDC_TLS_VERIFICATION=none
+      - QUARKUS_OIDC_TOKEN_ISSUER=http://keycloak.localhost/realms/sysdesign
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.analytics-service.rule=Host(`analytics.localhost`)"
+      - "traefik.http.routers.analytics-service.entrypoints=web"
+    depends_on:
+      - keycloak
+
+  keycloak-postgres:
+    image: postgres:14
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    environment:
+      POSTGRES_DB: keycloak
+      POSTGRES_USER: keycloak
+      POSTGRES_PASSWORD: password
+
+  keycloak:
+    image: quay.io/keycloak/keycloak:18.0.0
+    command: start-dev -Dkeycloak.import=/opt/jboss/keycloak/imports/sysdesign-realm.json --db postgres --db-url-host keycloak-postgres --db-username keycloak --db-password password
+    environment:
+      KEYCLOAK_ADMIN: admin
+      KEYCLOAK_ADMIN_PASSWORD: admin
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.keycloak.rule=Host(`keycloak.localhost`)"
+      - "traefik.http.routers.keycloak.entrypoints=web"
+    volumes:
+      - './keycloak-config:/opt/jboss/keycloak/imports'
+    depends_on:
+      - keycloak-postgres
+
+  mongodb:
+    image: mongo:4.4.13
+    volumes:
+      - 'mongodb_data:/data/db'
+
+  kafka:
+    image: docker.redpanda.com/vectorized/redpanda:v22.2.2
+    command:
+      - redpanda start
+      - --smp 1
+      - --overprovisioned
+      - --node-id 0
+      - --kafka-addr PLAINTEXT://0.0.0.0:29092,OUTSIDE://0.0.0.0:9092
+      - --advertise-kafka-addr PLAINTEXT://redpanda:29092,OUTSIDE://kafka:9092
+      - --pandaproxy-addr 0.0.0.0:8082
+      - --advertise-pandaproxy-addr localhost:8082
+    volumes:
+      - "kafka_data:/var/lib/redpanda/data"
+
+  traefik:
+    image: "traefik:v2.9"
+    container_name: "traefik"
+    command:
+      #- "--log.level=DEBUG"
+      - "--api.insecure=true"
+      - "--providers.docker=true"
+      - "--providers.docker.exposedbydefault=true"
+      - "--entrypoints.web.address=:80"
+    ports:
+      - "80:80"
+      - "8080:8080"
+    volumes:
+      - "/var/run/docker.sock:/var/run/docker.sock:ro"
+
+volumes:
+  postgres_data:
+    driver: local
+  mongodb_data:
+    driver: local
+  kafka_data:
+    driver: local
